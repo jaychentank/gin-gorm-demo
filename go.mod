@@ -1,4 +1,4 @@
-module jaychentank/ginEssential
+module ginEssential
 
 go 1.19
 
