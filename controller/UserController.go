@@ -2,9 +2,12 @@ package controller
 
 import (
 	"ginEssential/common"
+	"ginEssential/dto"
 	"ginEssential/model"
+	"ginEssential/response"
 	"log"
 	"math/rand"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,12 +23,12 @@ func Register(ctx *gin.Context) {
 	password := ctx.PostForm("password")
 	//数据验证
 	if len(telephone) != 11 {
-		ctx.JSON(422, gin.H{"code": 422, "msg": "手机号必须为11位"})
+		response.Response(ctx, http.StatusUnprocessableEntity, 422, nil, "手机号必须为11位")
 		return
 	}
 
 	if len(password) < 6 {
-		ctx.JSON(422, gin.H{"code": 422, "msg": "密码不能少于6位"})
+		response.Response(ctx, http.StatusUnprocessableEntity, 422, nil, "密码不能少于6位")
 		return
 	}
 
@@ -37,13 +40,13 @@ func Register(ctx *gin.Context) {
 	log.Println(name, telephone, password)
 	//判断手机号是否存在
 	if isTelephoneExist(db, telephone) {
-		ctx.JSON(422, gin.H{"code": 422, "msg": "用户已经存在"})
+		response.Response(ctx, http.StatusUnprocessableEntity, 422, nil, "用户已经存在")
 		return
 	}
 	//创建用户
 	hasedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		ctx.JSON(500, gin.H{"code": 500, "msg": "加密错误"})
+		response.Response(ctx, http.StatusInternalServerError, 500, nil, "加密错误")
 		return
 	}
 	newUser := model.User{
@@ -54,10 +57,7 @@ func Register(ctx *gin.Context) {
 	db.Create(&newUser)
 
 	//返回响应
-	ctx.JSON(200, gin.H{
-		"code": 200,
-		"msg":  "注册成功",
-	})
+	response.Success(ctx, nil, "注册成功")
 }
 
 func Login(ctx *gin.Context) {
@@ -69,11 +69,11 @@ func Login(ctx *gin.Context) {
 
 	//数据验证
 	if len(telephone) != 11 {
-		ctx.JSON(422, gin.H{"code": 422, "msg": "手机号必须为11位"})
+		response.Response(ctx, http.StatusUnprocessableEntity, 422, nil, "手机号必须为11位")
 		return
 	}
 	if len(password) < 6 {
-		ctx.JSON(422, gin.H{"code": 422, "msg": "密码不能少于6位"})
+		response.Response(ctx, http.StatusUnprocessableEntity, 422, nil, "密码不能少于6位")
 		return
 	}
 
@@ -81,37 +81,33 @@ func Login(ctx *gin.Context) {
 	var user model.User
 	db.Where("telephone = ?", telephone).First(&user)
 	if user.ID == 0 {
-		ctx.JSON(422, gin.H{"code": 422, "msg": "用户不存在"})
+		response.Response(ctx, http.StatusUnprocessableEntity, 422, nil, "用户不存在")
 		return
 	}
 
 	//判断密码是否正确
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		ctx.JSON(400, gin.H{"code": 400, "msg": "密码错误"})
+		response.Response(ctx, http.StatusBadRequest, 400, nil, "密码错误")
 		return
 	}
 
 	//发放token
 	token, err := common.ReleaseToken(user)
 	if err != nil {
-		ctx.JSON(500, gin.H{"code": 500, "msg": "系统异常"})
+		response.Response(ctx, http.StatusInternalServerError, 500, nil, "系统异常")
 		log.Printf("token generate error : %v", err)
 		return
 	}
 
 	//返回结果
-	ctx.JSON(200, gin.H{
-		"code": 200,
-		"msg":  "登录成功",
-		"data": gin.H{"token": token},
-	})
+	response.Success(ctx, gin.H{"token": token}, "登录成功")
 }
 
 func Info(ctx *gin.Context) {
 	user, _ := ctx.Get("user")
 	ctx.JSON(200, gin.H{
 		"code": 200,
-		"data": gin.H{"user": user},
+		"data": gin.H{"user": dto.ToUserDto(user.(model.User))},
 	})
 }
 
